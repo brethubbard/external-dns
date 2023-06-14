@@ -25,8 +25,8 @@ import (
 	"sigs.k8s.io/external-dns/endpoint"
 )
 
-func generateTestEndpoints() []*endpoint.Endpoint {
-	sc, _ := NewFakeSource("")
+func generateTestEndpoints(fqdnTemplate string) []*endpoint.Endpoint {
+	sc, _ := NewFakeSource(fqdnTemplate)
 
 	endpoints, _ := sc.Endpoints(context.Background())
 
@@ -34,7 +34,7 @@ func generateTestEndpoints() []*endpoint.Endpoint {
 }
 
 func TestFakeSourceReturnsTenEndpoints(t *testing.T) {
-	endpoints := generateTestEndpoints()
+	endpoints := generateTestEndpoints("")
 
 	count := len(endpoints)
 
@@ -46,7 +46,7 @@ func TestFakeSourceReturnsTenEndpoints(t *testing.T) {
 func TestFakeEndpointsBelongToDomain(t *testing.T) {
 	validRecord := regexp.MustCompile(`^[a-z]{4}\.example\.com$`)
 
-	endpoints := generateTestEndpoints()
+	endpoints := generateTestEndpoints("")
 
 	for _, e := range endpoints {
 		valid := validRecord.MatchString(e.DNSName)
@@ -58,12 +58,25 @@ func TestFakeEndpointsBelongToDomain(t *testing.T) {
 }
 
 func TestFakeEndpointsResolveToIPAddresses(t *testing.T) {
-	endpoints := generateTestEndpoints()
+	endpoints := generateTestEndpoints("")
 
 	for _, e := range endpoints {
 		ip := net.ParseIP(e.Targets[0])
 
 		if ip == nil {
+			t.Error(e)
+		}
+	}
+}
+
+func TestMultipleDomainsInFQDN(t *testing.T) {
+	validRecord := regexp.MustCompile(`^[a-z]{4}\.example\.com$|^[a-z]{4}\.example\.org$`)
+
+	endpoints := generateTestEndpoints("example.com,example.org")
+
+	for _, e := range endpoints {
+		t.Log(e.DNSName)
+		if !validRecord.MatchString(e.DNSName) {
 			t.Error(e)
 		}
 	}

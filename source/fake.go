@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"strings"
+	"text/template"
 
 	"sigs.k8s.io/external-dns/endpoint"
 )
@@ -32,7 +34,7 @@ import (
 // fakeSource is an implementation of Source that provides dummy endpoints for
 // testing/dry-running of dns providers without needing an attached Kubernetes cluster.
 type fakeSource struct {
-	dnsName string
+	dnsNames []string
 }
 
 const (
@@ -44,9 +46,14 @@ func NewFakeSource(fqdnTemplate string) (Source, error) {
 	if fqdnTemplate == "" {
 		fqdnTemplate = defaultFQDNTemplate
 	}
+	funcs := template.FuncMap{
+		"trimPrefix": strings.TrimPrefix,
+	}
+	template, _ := template.New("endpoint").Funcs(funcs).Parse(fqdnTemplate)
+	hostnames, _ := execTemplate(template, nil)
 
 	return &fakeSource{
-		dnsName: fqdnTemplate,
+		dnsNames: hostnames,
 	}, nil
 }
 
@@ -66,7 +73,7 @@ func (sc *fakeSource) Endpoints(ctx context.Context) ([]*endpoint.Endpoint, erro
 
 func (sc *fakeSource) generateEndpoint() (*endpoint.Endpoint, error) {
 	ep := endpoint.NewEndpoint(
-		generateDNSName(4, sc.dnsName),
+		generateDNSName(4, sc.dnsNames),
 		endpoint.RecordTypeA,
 		generateIPAddress(),
 	)
@@ -86,7 +93,7 @@ func generateIPAddress() string {
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz")
 
-func generateDNSName(prefixLength int, dnsName string) string {
+func generateDNSName(prefixLength int, dnsNames []string) string {
 	prefixBytes := make([]rune, prefixLength)
 
 	for i := range prefixBytes {
@@ -95,5 +102,5 @@ func generateDNSName(prefixLength int, dnsName string) string {
 
 	prefixStr := string(prefixBytes)
 
-	return fmt.Sprintf("%s.%s", prefixStr, dnsName)
+	return fmt.Sprintf("%s.%s", prefixStr, dnsNames[rand.Intn(len(dnsNames))])
 }
